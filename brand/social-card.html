@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; }
+  body {
+    background:
+      radial-gradient(62% 82% at 8% 100%, rgba(61,220,132,0.15), transparent 55%),
+      radial-gradient(52% 60% at 100% 0%, rgba(91,141,239,0.11), transparent 55%),
+      #0d1117;
+    color: #f0f6fc;
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", "Menlo", monospace; }
+  .card { width: 100%; height: 100%; padding: 74px 76px;
+          display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+  .card::before { content: ""; position: absolute; inset: 26px;
+    border: 1px solid rgba(139,148,158,0.14); border-radius: 20px; pointer-events: none; }
+
+  .top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .eyebrow { font-size: 21px; letter-spacing: 0.22em; text-transform: uppercase; color: #8b949e;
+             display: flex; align-items: center; gap: 14px; }
+  .eyebrow .dot { color: #3ddc84; }
+  .eyebrow b { color: #c9d1d9; font-weight: 600; }
+
+  /* econ stat motif, top-right — the punchiest number in the repo */
+  .econ { text-align: right; font-size: 22px; line-height: 1.5; }
+  .econ .h { color: #6e7681; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; }
+  .econ .cloud { color: #ff5470; }
+  .econ .owned { color: #3ddc84; }
+  .econ .x { color: #8b949e; font-size: 17px; }
+
+  .mid { margin-top: -4px; }
+  h1 { font-size: 76px; font-weight: 800; letter-spacing: -0.022em; line-height: 1.0; color: #f0f6fc; text-wrap: balance; }
+  .thesis { margin-top: 30px; font-size: 30px; font-weight: 450; line-height: 1.33; color: #adbac7; max-width: 940px; }
+  .thesis .green { color: #3ddc84; font-weight: 650; }
+
+  .bottom { border-top: 1px solid rgba(139,148,158,0.16); padding-top: 26px; }
+  .pipe { font-size: 22px; letter-spacing: 0.01em; color: #768390; white-space: nowrap; }
+  .pipe .sep { color: #4b535d; margin: 0 16px; }
+  .pipe .green { color: #3ddc84; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="top">
+      <div class="eyebrow"><span class="dot">🖥️</span> <b>GITHUB.COM/NSKIT&#8209;IO</b> · OPEN SOURCE</div>
+      <div class="econ mono">
+        <div class="h">50k req/day · one fleet</div>
+        <div><span class="cloud">metered cloud &nbsp;$2,790/mo</span></div>
+        <div><span class="owned">owned Mac &nbsp;&nbsp;&nbsp;&nbsp;$169/mo</span> <span class="x">16×</span></div>
+      </div>
+    </div>
+
+    <div class="mid">
+      <h1>Fleet Inference Gateway</h1>
+      <div class="thesis">Two inference processes on one Apple&#8209;Silicon Mac crash each other.<br>So make <span class="green">one process the whole GPU</span> — and run a fleet on it.</div>
+    </div>
+
+    <div class="bottom">
+      <div class="pipe mono">one process owns the GPU <span class="sep">·</span> everyone else is a <span class="green">thin client</span></div>
+    </div>
+  </div>
+</body>
+</html>

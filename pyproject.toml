@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fleet-inference-gateway"
+version = "1.0.0"
+description = "One process owns the GPU; everyone else is a thin client. A pattern (+ dependency-free reference) for serving a fleet's heterogeneous inference from a single Apple-Silicon machine — role-routed, safely serialized, past a metered API's break-even."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Neoulsoft Inc." }]
+keywords = [
+  "inference", "apple-silicon", "mlx", "metal", "gpu", "llm", "whisper",
+  "scheduler", "self-hosted", "local-llm", "fleet", "ai-native",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/nskit-io/fleet-inference-gateway"
+"NSKit" = "https://github.com/nskit-io/nskit-io"
+
+[tool.setuptools]
+packages = ["gateway"]
+package-dir = { gateway = "src/gateway" }
