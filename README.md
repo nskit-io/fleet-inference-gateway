@@ -4,7 +4,7 @@
 
 **Two inference processes on one Apple-Silicon Mac will crash each other. Turn that into an advantage: make one process the whole GPU, address it by role, and run a fleet's chat, classification, and speech from a single machine — for the price of the electricity.**
 
-> Used by [**NSKit**](https://github.com/nskit-io/nskit-io) — *bound by structure, free to combine.* This is the gateway behind NSKit's on-prem inference: one Mac Studio serving avatar chat, a news/fact pipeline, and translation across a fleet of ~30 apps, with no metered API bill.
+> Used by [**NSKit**](https://github.com/nskit-io/nskit-io) — *bound by structure, free to combine.* This is the gateway behind NSKit's on-prem inference: one Mac Studio serving avatar chat, a news/fact pipeline, and translation across a fleet of 21 apps, with no metered API bill.
 
 > One process owns every model. Everyone else is a thin HTTP client. The GPU is addressed by **role**, not by model name.
 
@@ -132,14 +132,27 @@ flowchart LR
 
 `python examples/demo.py` fires exactly this — a batch backlog, then chat and speech arriving mid-flood — and prints the finish order: interactive jumps the queue, the batch still drains, and `max_inflight` stays 1.
 
+### What came next: backpressure, and saying no
+
+Priority and aging decide *who goes first*. They do not decide *whether to accept at all*.
+On a fleet, a queue that only ever grows is a queue that eventually lies — a caller waits
+on a job that will not run in any useful time.
+
+The deployment this pattern came from now also scores queue pressure and **rejects or
+escalates** instead of silently enqueuing: when the interactive lane is under load, low
+priority work is either deferred or handed to a separate subscription-based worker pool.
+The point is not the specific policy but the shape of it — **admission is a decision, and
+the caller is told**. A gateway that always accepts is a gateway that pushes its own
+failure into somebody else's timeout.
+
 ## The economics: one machine vs a metered bill
 
 Latency is the reason you'll *build* it; the bill is the reason it *matters*. An owned Apple-Silicon machine has a near-flat monthly cost — hardware amortized over its life, plus power. A metered API scales with every token, forever.
 
 ```mermaid
 flowchart LR
-  subgraph fleet["a fleet of ~30 apps"]
-    A1["avatar"]; A2["news"]; A3["translation"]; A4["…27 more"]
+  subgraph fleet["a fleet of 21 apps"]
+    A1["avatar"]; A2["news"]; A3["translation"]; A4["…18 more"]
   end
   fleet --> OWN["one owned Mac<br/>≈ flat $/month"]
   fleet -. "the alternative" .-> CLD["metered cloud<br/>$/token · scales forever"]

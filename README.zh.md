@@ -4,7 +4,7 @@
 
 **在一台 Apple Silicon Mac 上跑两个推理进程，它们会互相搞崩。把这个约束反过来用——让一个进程独占整块 GPU，按角色而非模型去调用它，用一台机器跑起整个 fleet 的 chat、分类和语音——花的只是电费。**
 
-> [**NSKit**](https://github.com/nskit-io/nskit-io) 正在使用 — *受结构约束，组合自由。* 这是 NSKit 自建推理的网关：一台 Mac Studio 为约 30 个应用的 fleet 供给虚拟形象 chat、新闻/事实流水线和翻译，没有一分钱按量计费的 API 账单。
+> [**NSKit**](https://github.com/nskit-io/nskit-io) 正在使用 — *受结构约束，组合自由。* 这是 NSKit 自建推理的网关：一台 Mac Studio 为21 个应用的 fleet 供给虚拟形象 chat、新闻/事实流水线和翻译，没有一分钱按量计费的 API 账单。
 
 > 一个进程独占所有模型。其余全是 thin HTTP client。GPU 是**按角色（kind）调用的，而不是按模型名**。
 
@@ -132,14 +132,24 @@ flowchart LR
 
 `python examples/demo.py` 正是复现这一幕——先是批量 backlog,然后 chat 和语音在洪水中途到达——并打印完成顺序:实时插到队前,批量照样清空,而 `max_inflight` 始终为 1。
 
+### 接下来发生的：背压，以及学会拒绝
+
+优先级与 aging 决定*谁先执行*，却不决定*是否受理*。
+在 fleet 规模下，只增不减的队列最终会说谎——调用方在等一个不会在有效时间内跑起来的任务。
+
+这一模式所来自的部署，现在会对队列压力进行打分，不再默默入队，而是**拒绝或升级**：
+当实时通道处于负载时，低优先级工作要么延后，要么交给另一套基于订阅的 worker 池。
+重点不在于具体策略，而在于它的形态——**受理是一个判断，并且要告知调用方。**
+永远来者不拒的网关，是把自身失败推给别人超时的网关。
+
 ## 经济账 — 自有一台 vs 按量计费的账单
 
 延迟是你*去做它*的理由,账单才是它*要紧*的理由。一台自有的 Apple Silicon 机器,月成本近乎平坦——按寿命摊销的硬件 + 电费。按量计费的 API 则随每一个 token、永远地增长。
 
 ```mermaid
 flowchart LR
-  subgraph fleet["a fleet of ~30 apps"]
-    A1["avatar"]; A2["news"]; A3["translation"]; A4["…27 more"]
+  subgraph fleet["a fleet of 21 apps"]
+    A1["avatar"]; A2["news"]; A3["translation"]; A4["…18 more"]
   end
   fleet --> OWN["one owned Mac<br/>≈ flat $/month"]
   fleet -. "the alternative" .-> CLD["metered cloud<br/>$/token · scales forever"]

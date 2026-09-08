@@ -4,7 +4,7 @@
 
 **Apple Silicon Mac 한 대에서 추론 프로세스를 둘 돌리면 서로 크래시난다. 이걸 역이용한다 — 한 프로세스가 GPU 전체를 소유하게 하고, 모델이 아니라 역할로 부르며, fleet 전체의 chat·분류·음성을 기계 한 대로, 전기값에 돌린다.**
 
-> [**NSKit**](https://github.com/nskit-io/nskit-io) 에서 사용 중 — *구조에는 묶이되, 조합은 자유롭게.* NSKit 온프렘 추론의 게이트웨이로, Mac Studio 한 대가 아바타 chat·뉴스/팩트 파이프라인·번역을 ~30개 앱 fleet에 서빙하며, 종량제 API 청구서가 없다.
+> [**NSKit**](https://github.com/nskit-io/nskit-io) 에서 사용 중 — *구조에는 묶이되, 조합은 자유롭게.* NSKit 온프렘 추론의 게이트웨이로, Mac Studio 한 대가 아바타 chat·뉴스/팩트 파이프라인·번역을 21개 앱 fleet에 서빙하며, 종량제 API 청구서가 없다.
 
 > 한 프로세스가 모든 모델을 소유한다. 나머지는 전부 thin HTTP client. GPU는 **모델명이 아니라 역할(kind)로** 부른다.
 
@@ -132,14 +132,25 @@ flowchart LR
 
 `python examples/demo.py`가 정확히 이걸 재현한다 — 배치 백로그, 그다음 홍수 한복판에 도착하는 chat과 음성 — 그리고 완료 순서를 찍는다: 실시간이 큐를 제치고, 배치는 그래도 드레인되며, `max_inflight`는 1을 유지한다.
 
+### 그다음에 온 것: 백프레셔, 그리고 거절
+
+우선순위와 aging 은 *누가 먼저 갈지*를 정한다. *받을지 말지*는 정하지 않는다.
+fleet 규모에서 늘어나기만 하는 큐는 결국 거짓말을 한다 — 호출자가 쓸모 있는 시간 안에
+돌지 않을 작업을 기다리게 된다.
+
+이 패턴이 나온 배포는 이제 큐 압력을 점수로 재고, 조용히 쌓는 대신 **거절하거나 승격**한다.
+실시간 레인이 부하를 받으면 낮은 우선순위 작업은 미루거나 별도의 구독 기반 워커 풀로 넘긴다.
+핵심은 특정 정책이 아니라 그 형태다 — **수용은 판단이고, 호출자에게 알린다.**
+언제나 받는 게이트웨이는 자기 실패를 남의 타임아웃으로 떠넘기는 게이트웨이다.
+
 ## 경제학 — 소유한 기계 하나 vs 종량제 청구서
 
 지연은 이걸 *만들* 이유고, 청구서는 이게 *중요한* 이유다. 소유한 Apple Silicon 기계는 월 비용이 거의 평평하다 — 수명으로 나눈 하드웨어 상각 + 전기. 종량제 API는 토큰마다, 영원히, 비용이 커진다.
 
 ```mermaid
 flowchart LR
-  subgraph fleet["a fleet of ~30 apps"]
-    A1["avatar"]; A2["news"]; A3["translation"]; A4["…27 more"]
+  subgraph fleet["a fleet of 21 apps"]
+    A1["avatar"]; A2["news"]; A3["translation"]; A4["…18 more"]
   end
   fleet --> OWN["one owned Mac<br/>≈ flat $/month"]
   fleet -. "the alternative" .-> CLD["metered cloud<br/>$/token · scales forever"]

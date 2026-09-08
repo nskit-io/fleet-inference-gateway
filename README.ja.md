@@ -4,7 +4,7 @@
 
 **Apple Silicon の Mac 1 台で推論プロセスを 2 つ動かすと、互いにクラッシュする。これを逆手に取る — 1 つのプロセスに GPU 全体を持たせ、モデルではなく役割で呼び、fleet 全体の chat・分類・音声を 1 台で、電気代で回す。**
 
-> [**NSKit**](https://github.com/nskit-io/nskit-io) で稼働中 — *構造には縛られ、組み合わせは自由に。* NSKit のオンプレ推論のゲートウェイであり、Mac Studio 1 台がアバター chat・ニュース/ファクトのパイプライン・翻訳を約 30 本のアプリ fleet に供給し、従量課金の API 請求書がない。
+> [**NSKit**](https://github.com/nskit-io/nskit-io) で稼働中 — *構造には縛られ、組み合わせは自由に。* NSKit のオンプレ推論のゲートウェイであり、Mac Studio 1 台がアバター chat・ニュース/ファクトのパイプライン・翻訳を21 本のアプリ fleet に供給し、従量課金の API 請求書がない。
 
 > 1 つのプロセスがすべてのモデルを所有する。ほかはすべて thin HTTP client。GPU は**モデル名ではなく役割（kind）で**呼ぶ。
 
@@ -132,14 +132,26 @@ flowchart LR
 
 `python examples/demo.py` がまさにこれを再現する — バッチの backlog、そして洪水の只中に届く chat と音声 — そして完了順を出力する：リアルタイムがキューを追い越し、バッチもちゃんと捌け、`max_inflight` は 1 を保つ。
 
+### その次に来たもの：バックプレッシャー、そして断ること
+
+優先度と aging は*誰が先に行くか*を決める。*受けるかどうか*は決めない。
+fleet 規模で増える一方のキューは、いずれ嘘をつく — 呼び出し側が、有用な時間内には
+回らないジョブを待つことになる。
+
+このパターンが生まれたデプロイでは、いまはキュー圧をスコア化し、黙って積む代わりに
+**拒否するか、エスカレーションする**。リアルタイムのレーンが負荷を受けているとき、
+低優先度の作業は先送りするか、別のサブスクリプション型ワーカープールに渡す。
+要点は個別のポリシーではなく、その形だ — **受理は判断であり、呼び出し側に伝える。**
+常に受けるゲートウェイは、自分の失敗を他人のタイムアウトに押し付けるゲートウェイである。
+
 ## 経済性 — 所有する 1 台 vs 従量課金の請求書
 
 遅延はそれを*作る*理由で、請求書はそれが*効いてくる*理由だ。所有する Apple Silicon の 1 台は、月あたりのコストがほぼ平坦だ — 寿命で割ったハードウェアの償却 + 電気。従量課金の API はトークンごとに、永遠にスケールする。
 
 ```mermaid
 flowchart LR
-  subgraph fleet["a fleet of ~30 apps"]
-    A1["avatar"]; A2["news"]; A3["translation"]; A4["…27 more"]
+  subgraph fleet["a fleet of 21 apps"]
+    A1["avatar"]; A2["news"]; A3["translation"]; A4["…18 more"]
   end
   fleet --> OWN["one owned Mac<br/>≈ flat $/month"]
   fleet -. "the alternative" .-> CLD["metered cloud<br/>$/token · scales forever"]
