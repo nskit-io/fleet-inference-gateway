@@ -4,7 +4,7 @@
 
 **Apple Silicon Mac 한 대에서 추론 프로세스를 둘 돌리면 서로 크래시난다. 이걸 역이용한다 — 한 프로세스가 GPU 전체를 소유하게 하고, 모델이 아니라 역할로 부르며, fleet 전체의 chat·분류·음성을 기계 한 대로, 전기값에 돌린다.**
 
-> [**NSKit**](https://github.com/nskit-io/nskit-io) 에서 사용 중 — *구조에는 묶이되, 조합은 자유롭게.* NSKit 온프렘 추론의 게이트웨이로, Mac Studio 한 대가 아바타 chat·뉴스/팩트 파이프라인·번역을 21개 앱 fleet에 서빙하며, 종량제 API 청구서가 없다.
+> [**NSKit**](https://github.com/nskit-io/nskit-io) 에서 사용 중 — *구조에는 묶이되, 조합은 자유롭게.* NSKit 온프렘 추론의 패턴으로, Apple Silicon 머신 한 대가 앱 fleet에 추론을 서빙하며(현재는 주로 번역·음성 인식(STT) 워크로드), 종량제 API 청구서가 없다.
 
 > 한 프로세스가 모든 모델을 소유한다. 나머지는 전부 thin HTTP client. GPU는 **모델명이 아니라 역할(kind)로** 부른다.
 
@@ -74,9 +74,9 @@ flowchart TB
     L --- M2
     L --- M3
   end
-  C1["avatar app<br/>thin client"] --> gw
-  C2["news pipeline<br/>thin client"] --> gw
-  C3["translation<br/>thin client"] --> gw
+  C1["translation app<br/>thin client"] --> gw
+  C2["speech-to-text app<br/>thin client"] --> gw
+  C3["batch job<br/>thin client"] --> gw
   style gw fill:#0f2419,stroke:#3ddc84,color:#c8f7dc
   style L fill:#132a1d,stroke:#3ddc84,color:#c8f7dc
 ```
@@ -104,7 +104,7 @@ flowchart LR
 
 ## 혼합 fleet 스케줄링
 
-실시간 아바타 응답과 5만 행 배치 백필은 정반대를 원한다: 하나는 지금 당장의 낮은 지연을, 다른 하나는 언젠가의 처리량을. 이 둘을 한 레인에 태우면 배치 홍수가 사람을 기다리게 만든다. 프로덕션에서 값을 치르고 배운 교훈 둘:
+실시간 chat 응답과 5만 행 배치 백필은 정반대를 원한다: 하나는 지금 당장의 낮은 지연을, 다른 하나는 언젠가의 처리량을. 이 둘을 한 레인에 태우면 배치 홍수가 사람을 기다리게 만든다. 프로덕션에서 값을 치르고 배운 교훈 둘:
 
 **레인을 격리해, 멈춘 레인이 살아있는 레인을 못 막게 한다.** 공유된 "chat" 큐 하나가 한 번 처박힌 적이 있다 — submitted 11,183 / completed 0, 락이 끝내 안 풀림 — 그동안 목적별 큐들은 멀쩡히 드레인됐다. 해법은 구조적이었다: 실시간 작업에 자기 큐를 주고, 배치 작업은 kind별 별도 큐로 라우팅해, 오염된 레인 하나가 fleet 전체를 끌고 넘어지지 못하게.
 
@@ -149,8 +149,8 @@ fleet 규모에서 늘어나기만 하는 큐는 결국 거짓말을 한다 — 
 
 ```mermaid
 flowchart LR
-  subgraph fleet["a fleet of 21 apps"]
-    A1["avatar"]; A2["news"]; A3["translation"]; A4["…18 more"]
+  subgraph fleet["a fleet of apps (example)"]
+    A1["translation"]; A2["speech-to-text"]; A3["chat"]; A4["…more"]
   end
   fleet --> OWN["one owned Mac<br/>≈ flat $/month"]
   fleet -. "the alternative" .-> CLD["metered cloud<br/>$/token · scales forever"]
@@ -160,7 +160,7 @@ flowchart LR
   style WIN fill:#132a1d,stroke:#3ddc84,color:#c8f7dc
 ```
 
-`python examples/economics.py`가 이 back-of-envelope 모델을 돌린다. Mac Studio를 3년으로 상각하고 중간급 GPT-class API를 100만 토큰당 $0.60/$2.40로 잡으면 break-even은 대략 **~3,000 요청/일**에 걸린다 — 어떤 단일 앱은 못 미쳐도 *fleet*에는 하찮은 수치다. 그 선을 넘으면 기계가 조금 싼 정도가 아니라, fleet 볼륨에선 매달 한 자릿수 배수로 싸다. Unified memory가 이걸 가능케 한다: 이종 모델군이 한 주소공간에 *공존*하고, 직렬화가 크래시를 막고, 역할 라우팅이 호출자를 단순하게 유지한다.
+`python examples/economics.py`가 이 back-of-envelope 모델을 돌린다. Apple Silicon Mac을 3년으로 상각하고 중간급 GPT-class API를 100만 토큰당 $0.60/$2.40로 잡으면 break-even은 대략 **~3,000 요청/일**에 걸린다 — 어떤 단일 앱은 못 미쳐도 *fleet*에는 하찮은 수치다. 그 선을 넘으면 기계가 조금 싼 정도가 아니라, fleet 볼륨에선 매달 한 자릿수 배수로 싸다. Unified memory가 이걸 가능케 한다: 이종 모델군이 한 주소공간에 *공존*하고, 직렬화가 크래시를 막고, 역할 라우팅이 호출자를 단순하게 유지한다.
 
 ## 레퍼런스 코드
 

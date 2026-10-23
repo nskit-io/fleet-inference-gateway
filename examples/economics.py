@@ -34,7 +34,7 @@ def breakeven_reqs_per_day(owned_month, in_tok, out_tok, price_in_per_m, price_o
 
 if __name__ == "__main__":
     # ---- inputs (edit to your own) --------------------------------------
-    MACHINE_USD, LIFE_MONTHS, WATTS, POWER = 5_600, 36, 120, 0.16   # a Mac Studio, 3-yr life
+    MACHINE_USD, LIFE_MONTHS, WATTS, POWER = 5_600, 36, 120, 0.16   # an Apple-Silicon Mac, 3-yr life
     PRICE_IN, PRICE_OUT = 0.60, 2.40                                # $/1M tokens (a mid GPT-class API)
     IN_TOK, OUT_TOK = 1_500, 400                                    # avg per request
 
@@ -53,6 +53,6 @@ if __name__ == "__main__":
         mult = f"  ({cloud/owned:.1f}× cloud)" if cloud > owned else ""
         print(f"  {r:>10,} │ ${cloud:>8,.0f} │ ${owned:>7,.0f} │ {win}{mult}")
 
-    print("\n  A fleet of ~30 apps sharing one machine reaches fleet-wide volume that no")
+    print("\n  A fleet of apps sharing one machine reaches fleet-wide volume that no")
     print("  single app would — so the machine is past break-even for the *portfolio*")
     print("  long before it would be for any one app. That is the fleet economics.")

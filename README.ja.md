@@ -4,7 +4,7 @@
 
 **Apple Silicon の Mac 1 台で推論プロセスを 2 つ動かすと、互いにクラッシュする。これを逆手に取る — 1 つのプロセスに GPU 全体を持たせ、モデルではなく役割で呼び、fleet 全体の chat・分類・音声を 1 台で、電気代で回す。**
 
-> [**NSKit**](https://github.com/nskit-io/nskit-io) で稼働中 — *構造には縛られ、組み合わせは自由に。* NSKit のオンプレ推論のゲートウェイであり、Mac Studio 1 台がアバター chat・ニュース/ファクトのパイプライン・翻訳を21 本のアプリ fleet に供給し、従量課金の API 請求書がない。
+> [**NSKit**](https://github.com/nskit-io/nskit-io) で稼働中 — *構造には縛られ、組み合わせは自由に。* NSKit のオンプレ推論のパターンであり、Apple Silicon マシン 1 台がアプリ fleet に推論を供給し（現在は主に翻訳・音声認識（STT）のワークロード）、従量課金の API 請求書がない。
 
 > 1 つのプロセスがすべてのモデルを所有する。ほかはすべて thin HTTP client。GPU は**モデル名ではなく役割（kind）で**呼ぶ。
 
@@ -74,9 +74,9 @@ flowchart TB
     L --- M2
     L --- M3
   end
-  C1["avatar app<br/>thin client"] --> gw
-  C2["news pipeline<br/>thin client"] --> gw
-  C3["translation<br/>thin client"] --> gw
+  C1["translation app<br/>thin client"] --> gw
+  C2["speech-to-text app<br/>thin client"] --> gw
+  C3["batch job<br/>thin client"] --> gw
   style gw fill:#0f2419,stroke:#3ddc84,color:#c8f7dc
   style L fill:#132a1d,stroke:#3ddc84,color:#c8f7dc
 ```
@@ -104,7 +104,7 @@ flowchart LR
 
 ## 混在する fleet をスケジューリングする
 
-リアルタイムのアバター応答と 5 万行のバッチ backfill は、正反対を欲しがる — 一方は今すぐの低遅延、他方はいつかのスループット。両者を 1 レーンに乗せれば、バッチの洪水が人を待たせる。プロダクションで代償を払って学んだ教訓が 2 つ。
+リアルタイムの chat 応答と 5 万行のバッチ backfill は、正反対を欲しがる — 一方は今すぐの低遅延、他方はいつかのスループット。両者を 1 レーンに乗せれば、バッチの洪水が人を待たせる。プロダクションで代償を払って学んだ教訓が 2 つ。
 
 **レーンを隔離し、止まったレーンが生きたレーンを塞げないようにする。** 共有の「chat」キューが一度詰まったことがある — submitted 11,183 / completed 0、ロックが解放されないまま — その間も目的別のキューは正常に捌けていた。解は構造的だった：リアルタイム作業に専用キューを与え、バッチ作業は kind ごとの別キューへ流し、汚染された 1 レーンが fleet 全体を道連れにできないようにした。
 
@@ -150,8 +150,8 @@ fleet 規模で増える一方のキューは、いずれ嘘をつく — 呼び
 
 ```mermaid
 flowchart LR
-  subgraph fleet["a fleet of 21 apps"]
-    A1["avatar"]; A2["news"]; A3["translation"]; A4["…18 more"]
+  subgraph fleet["a fleet of apps (example)"]
+    A1["translation"]; A2["speech-to-text"]; A3["chat"]; A4["…more"]
   end
   fleet --> OWN["one owned Mac<br/>≈ flat $/month"]
   fleet -. "the alternative" .-> CLD["metered cloud<br/>$/token · scales forever"]
@@ -161,7 +161,7 @@ flowchart LR
   style WIN fill:#132a1d,stroke:#3ddc84,color:#c8f7dc
 ```
 
-`python examples/economics.py` がこの back-of-envelope モデルを回す。Mac Studio を 3 年で償却し、中位の GPT クラス API を 100 万トークンあたり $0.60/$2.40 とすると、break-even はおよそ **約 3,000 リクエスト/日** に来る — どの単一アプリも届かなくても、*fleet* には些細な数だ。その線を越えれば、機械は少し安いどころか、fleet の量では毎月ひと桁倍安い。unified memory がそれを成り立たせる：ヘテロなモデル群が 1 つのアドレス空間に*共存*し、直列化がクラッシュを防ぎ、役割ルーティングが呼び出し側を単純に保つ。
+`python examples/economics.py` がこの back-of-envelope モデルを回す。Apple Silicon Mac を 3 年で償却し、中位の GPT クラス API を 100 万トークンあたり $0.60/$2.40 とすると、break-even はおよそ **約 3,000 リクエスト/日** に来る — どの単一アプリも届かなくても、*fleet* には些細な数だ。その線を越えれば、機械は少し安いどころか、fleet の量では毎月ひと桁倍安い。unified memory がそれを成り立たせる：ヘテロなモデル群が 1 つのアドレス空間に*共存*し、直列化がクラッシュを防ぎ、役割ルーティングが呼び出し側を単純に保つ。
 
 ## リファレンスコード
 

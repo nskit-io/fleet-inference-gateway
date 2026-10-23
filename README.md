@@ -4,7 +4,7 @@
 
 **Two inference processes on one Apple-Silicon Mac will crash each other. Turn that into an advantage: make one process the whole GPU, address it by role, and run a fleet's chat, classification, and speech from a single machine — for the price of the electricity.**
 
-> Used by [**NSKit**](https://github.com/nskit-io/nskit-io) — *bound by structure, free to combine.* This is the gateway behind NSKit's on-prem inference: one Mac Studio serving avatar chat, a news/fact pipeline, and translation across a fleet of 21 apps, with no metered API bill.
+> Used by [**NSKit**](https://github.com/nskit-io/nskit-io) — *bound by structure, free to combine.* This is the pattern behind NSKit's on-prem inference: one Apple-Silicon machine serving a fleet of apps — today mostly translation and speech-to-text workloads — with no metered API bill.
 
 > One process owns every model. Everyone else is a thin HTTP client. The GPU is addressed by **role**, not by model name.
 
@@ -74,9 +74,9 @@ flowchart TB
     L --- M2
     L --- M3
   end
-  C1["avatar app<br/>thin client"] --> gw
-  C2["news pipeline<br/>thin client"] --> gw
-  C3["translation<br/>thin client"] --> gw
+  C1["translation app<br/>thin client"] --> gw
+  C2["speech-to-text app<br/>thin client"] --> gw
+  C3["batch job<br/>thin client"] --> gw
   style gw fill:#0f2419,stroke:#3ddc84,color:#c8f7dc
   style L fill:#132a1d,stroke:#3ddc84,color:#c8f7dc
 ```
@@ -104,7 +104,7 @@ Two payoffs. First, **the group is heterogeneous**: a 26B model for hard reasoni
 
 ## Scheduling a mixed fleet
 
-An interactive avatar reply and a 50,000-row batch backfill want opposite things: one needs low latency now, the other needs throughput eventually. Run them through one lane and the batch flood makes the person wait. Two lessons, both paid for in production:
+An interactive chat reply and a 50,000-row batch backfill want opposite things: one needs low latency now, the other needs throughput eventually. Run them through one lane and the batch flood makes the person wait. Two lessons, both paid for in production:
 
 **Isolate queues so a stalled lane can't block a live one.** A single shared "chat" queue once wedged — 11,183 jobs submitted, 0 completed, the lock never released — while every purpose-specific queue kept draining normally. The fix was structural: give interactive work its own queue, and route batch work through separate per-kind queues, so one poisoned lane can never take the fleet down with it.
 
@@ -151,8 +151,8 @@ Latency is the reason you'll *build* it; the bill is the reason it *matters*. An
 
 ```mermaid
 flowchart LR
-  subgraph fleet["a fleet of 21 apps"]
-    A1["avatar"]; A2["news"]; A3["translation"]; A4["…18 more"]
+  subgraph fleet["a fleet of apps (example)"]
+    A1["translation"]; A2["speech-to-text"]; A3["chat"]; A4["…more"]
   end
   fleet --> OWN["one owned Mac<br/>≈ flat $/month"]
   fleet -. "the alternative" .-> CLD["metered cloud<br/>$/token · scales forever"]
@@ -162,7 +162,7 @@ flowchart LR
   style WIN fill:#132a1d,stroke:#3ddc84,color:#c8f7dc
 ```
 
-`python examples/economics.py` runs the back-of-envelope model. With a Mac Studio amortized over three years and a mid GPT-class API at $0.60/$2.40 per 1M tokens, break-even lands around **~3,000 requests/day** — trivial for a *fleet*, even if no single app would reach it. Above that line the machine isn't a little cheaper; at fleet volume it's cheaper by an order of magnitude, month after month. Unified memory is what makes it work: a heterogeneous group of models *coexists* in one address space; serialization keeps them from crashing; role-routing keeps the callers dumb.
+`python examples/economics.py` runs the back-of-envelope model. With an Apple-Silicon Mac amortized over three years and a mid GPT-class API at $0.60/$2.40 per 1M tokens, break-even lands around **~3,000 requests/day** — trivial for a *fleet*, even if no single app would reach it. Above that line the machine isn't a little cheaper; at fleet volume it's cheaper by an order of magnitude, month after month. Unified memory is what makes it work: a heterogeneous group of models *coexists* in one address space; serialization keeps them from crashing; role-routing keeps the callers dumb.
 
 ## Reference code
 

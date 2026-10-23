@@ -4,7 +4,7 @@
 
 **在一台 Apple Silicon Mac 上跑两个推理进程，它们会互相搞崩。把这个约束反过来用——让一个进程独占整块 GPU，按角色而非模型去调用它，用一台机器跑起整个 fleet 的 chat、分类和语音——花的只是电费。**
 
-> [**NSKit**](https://github.com/nskit-io/nskit-io) 正在使用 — *受结构约束，组合自由。* 这是 NSKit 自建推理的网关：一台 Mac Studio 为21 个应用的 fleet 供给虚拟形象 chat、新闻/事实流水线和翻译，没有一分钱按量计费的 API 账单。
+> [**NSKit**](https://github.com/nskit-io/nskit-io) 正在使用 — *受结构约束，组合自由。* 这是 NSKit 自建推理的模式：一台 Apple Silicon 机器为一支应用 fleet 供给推理（目前主要是翻译和语音转文字（STT）类工作负载），没有一分钱按量计费的 API 账单。
 
 > 一个进程独占所有模型。其余全是 thin HTTP client。GPU 是**按角色（kind）调用的，而不是按模型名**。
 
@@ -74,9 +74,9 @@ flowchart TB
     L --- M2
     L --- M3
   end
-  C1["avatar app<br/>thin client"] --> gw
-  C2["news pipeline<br/>thin client"] --> gw
-  C3["translation<br/>thin client"] --> gw
+  C1["translation app<br/>thin client"] --> gw
+  C2["speech-to-text app<br/>thin client"] --> gw
+  C3["batch job<br/>thin client"] --> gw
   style gw fill:#0f2419,stroke:#3ddc84,color:#c8f7dc
   style L fill:#132a1d,stroke:#3ddc84,color:#c8f7dc
 ```
@@ -104,7 +104,7 @@ flowchart LR
 
 ## 调度一支混合 fleet
 
-实时的虚拟形象回复和五万行的批量回填,想要的东西正相反：一个要此刻的低延迟,另一个要将来的吞吐。把两者塞进一条车道,批量洪水就会让人干等。两条在生产里付过代价的教训:
+实时的 chat 回复和五万行的批量回填,想要的东西正相反：一个要此刻的低延迟,另一个要将来的吞吐。把两者塞进一条车道,批量洪水就会让人干等。两条在生产里付过代价的教训:
 
 **隔离车道,让卡死的车道无法堵住活着的车道。** 一条共享的「chat」队列曾经卡死过——submitted 11,183 / completed 0,锁再没释放——而与此同时,各个专用队列照常清空。解法是结构性的:给实时活儿一条自己的队列,把批量活儿按 kind 路由到各自独立的队列,这样一条被污染的车道就没法拉着整个 fleet 一起翻。
 
@@ -148,8 +148,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  subgraph fleet["a fleet of 21 apps"]
-    A1["avatar"]; A2["news"]; A3["translation"]; A4["…18 more"]
+  subgraph fleet["a fleet of apps (example)"]
+    A1["translation"]; A2["speech-to-text"]; A3["chat"]; A4["…more"]
   end
   fleet --> OWN["one owned Mac<br/>≈ flat $/month"]
   fleet -. "the alternative" .-> CLD["metered cloud<br/>$/token · scales forever"]
@@ -159,7 +159,7 @@ flowchart LR
   style WIN fill:#132a1d,stroke:#3ddc84,color:#c8f7dc
 ```
 
-`python examples/economics.py` 会跑这个粗算模型。把 Mac Studio 按三年摊销,中档 GPT 级 API 按每百万 token $0.60/$2.40 算,break-even 大约落在 **约 3,000 请求/天**——任何单个应用够不着,对一支 *fleet* 却是小数目。越过那条线,机器就不是便宜一点点:在 fleet 的量级上,它每个月要便宜一个数量级。unified memory 是它成立的关键:一组异构模型*共存*于同一地址空间,串行化防止它们崩溃,角色路由让调用方保持简单。
+`python examples/economics.py` 会跑这个粗算模型。把一台 Apple Silicon Mac 按三年摊销,中档 GPT 级 API 按每百万 token $0.60/$2.40 算,break-even 大约落在 **约 3,000 请求/天**——任何单个应用够不着,对一支 *fleet* 却是小数目。越过那条线,机器就不是便宜一点点:在 fleet 的量级上,它每个月要便宜一个数量级。unified memory 是它成立的关键:一组异构模型*共存*于同一地址空间,串行化防止它们崩溃,角色路由让调用方保持简单。
 
 ## 参考代码
 
