@@ -100,7 +100,7 @@ flowchart LR
   style W fill:#0f2419,stroke:#3ddc84,color:#c8f7dc
 ```
 
-Two payoffs. First, **the group is heterogeneous**: a 26B model for hard reasoning, a small model for cheap structured extraction (80–90% of batch work), and a speech model — different modalities, one lock, one schedule. Second, **routing is a table, not client code**: move `summarize` from the small model to the big one, or split one busy kind into its own queue, by editing the router — every client follows, untouched.
+Two payoffs. First, **the group is heterogeneous**: a 26B model for hard reasoning, a small model for cheap structured extraction (most of the batch work in our fleet), and a speech model — different modalities, one lock, one schedule. Second, **routing is a table, not client code**: move `summarize` from the small model to the big one, or split one busy kind into its own queue, by editing the router — every client follows, untouched.
 
 ## Scheduling a mixed fleet
 
@@ -139,8 +139,8 @@ On a fleet, a queue that only ever grows is a queue that eventually lies — a c
 on a job that will not run in any useful time.
 
 The deployment this pattern came from now also scores queue pressure and **rejects or
-escalates** instead of silently enqueuing: when the interactive lane is under load, low
-priority work is either deferred or handed to a separate subscription-based worker pool.
+defers** instead of silently enqueuing: when the interactive lane is under load, low
+priority work is either deferred or refused with an explicit answer to the caller.
 The point is not the specific policy but the shape of it — **admission is a decision, and
 the caller is told**. A gateway that always accepts is a gateway that pushes its own
 failure into somebody else's timeout.
@@ -166,7 +166,7 @@ flowchart LR
 
 ## Reference code
 
-Dependency-free Python in [`src/gateway/`](src/gateway/) — a single-owner GPU worker, a role router, and a starving-avoidance scheduler, ~250 lines you can read end to end. The models are stubs that sleep for a representative time, so the whole thing runs with no GPU and no MLX.
+Dependency-free Python in [`src/gateway/`](src/gateway/) — a single-owner GPU worker, a role router, and a starving-avoidance scheduler, ~250 lines of core (`core.py`) you can read end to end. The models are stubs that sleep for a representative time, so the whole thing runs with no GPU and no MLX.
 
 ```python
 from src.gateway import Gateway, default_models
