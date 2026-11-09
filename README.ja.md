@@ -211,3 +211,5 @@ python -m pytest test/          # max_inflight==1・優先度・飢餓回避を 
 ## ライセンス
 
 MIT © Neoulsoft Inc. [LICENSE](LICENSE) を参照。
+
+> 本リポジトリは設計パターンとリファレンスを MIT ライセンスで公開するものです。NSKit フレームワーク本体（ランタイム・スキャフォールディング・チェッカー・運用標準）は Neoulsoft Inc. の非公開資産であり、別途商用ライセンスで提供されます。
